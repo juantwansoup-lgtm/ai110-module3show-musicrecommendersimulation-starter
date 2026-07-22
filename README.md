@@ -159,6 +159,254 @@ The ranking matches expectations: **Sunrise City** wins decisively as the only s
 
 ---
 
+## System Evaluation: Profile Recommendations
+
+Running `python -m src.main` now scores the catalog against **seven** taste
+profiles: three coherent "normal" listeners, then four **adversarial /
+edge-case** profiles built to see whether the scoring logic can be tricked.
+All output below is the real terminal output, top 5 per profile.
+
+### Normal profiles
+
+**High-Energy Pop** — `genre=pop, mood=happy, energy=0.9`
+
+```
+============================================================
+  High-Energy Pop
+  Profile: genre=pop, mood=happy, energy=0.9
+============================================================
+
+1. Sunrise City - Neon Echo   (score: 5.34)
+     - genre match: pop (+2.0)
+     - mood match: happy (+1.5)
+     - energy 0.82 vs target 0.90 (+1.84)
+
+2. Gym Hero - Max Pulse   (score: 3.94)
+     - genre match: pop (+2.0)
+     - energy 0.93 vs target 0.90 (+1.94)
+
+3. Rooftop Lights - Indigo Parade   (score: 3.22)
+     - mood match: happy (+1.5)
+     - energy 0.76 vs target 0.90 (+1.72)
+
+4. Storm Runner - Voltline   (score: 1.98)
+     - energy 0.91 vs target 0.90 (+1.98)
+
+5. Pulse Reactor - Circuit Bloom   (score: 1.96)
+     - energy 0.88 vs target 0.90 (+1.96)
+```
+
+**Chill Lofi** — `genre=lofi, mood=chill, energy=0.35, likes_acoustic=True`
+
+```
+============================================================
+  Chill Lofi
+  Profile: genre=lofi, mood=chill, energy=0.35, likes_acoustic=True
+============================================================
+
+1. Library Rain - Paper Lanterns   (score: 6.00)
+     - genre match: lofi (+2.0)
+     - mood match: chill (+1.5)
+     - energy 0.35 vs target 0.35 (+2.00)
+     - acoustic pick: acousticness 0.86 (+0.5)
+
+2. Midnight Coding - LoRoom   (score: 5.86)
+     - genre match: lofi (+2.0)
+     - mood match: chill (+1.5)
+     - energy 0.42 vs target 0.35 (+1.86)
+     - acoustic pick: acousticness 0.71 (+0.5)
+
+3. Focus Flow - LoRoom   (score: 4.40)
+     - genre match: lofi (+2.0)
+     - energy 0.40 vs target 0.35 (+1.90)
+     - acoustic pick: acousticness 0.78 (+0.5)
+
+4. Spacewalk Thoughts - Orbit Bloom   (score: 3.86)
+     - mood match: chill (+1.5)
+     - energy 0.28 vs target 0.35 (+1.86)
+     - acoustic pick: acousticness 0.92 (+0.5)
+
+5. Coffee Shop Stories - Slow Stereo   (score: 2.46)
+     - energy 0.37 vs target 0.35 (+1.96)
+     - acoustic pick: acousticness 0.89 (+0.5)
+```
+
+**Deep Intense Rock** — `genre=rock, mood=intense, energy=0.9`
+
+```
+============================================================
+  Deep Intense Rock
+  Profile: genre=rock, mood=intense, energy=0.9
+============================================================
+
+1. Storm Runner - Voltline   (score: 5.48)
+     - genre match: rock (+2.0)
+     - mood match: intense (+1.5)
+     - energy 0.91 vs target 0.90 (+1.98)
+
+2. Gym Hero - Max Pulse   (score: 3.44)
+     - mood match: intense (+1.5)
+     - energy 0.93 vs target 0.90 (+1.94)
+
+3. Pulse Reactor - Circuit Bloom   (score: 1.96)
+     - energy 0.88 vs target 0.90 (+1.96)
+
+4. Iron Verdict - Ashfall   (score: 1.88)
+     - energy 0.96 vs target 0.90 (+1.88)
+
+5. Sunrise City - Neon Echo   (score: 1.84)
+     - energy 0.82 vs target 0.90 (+1.84)
+```
+
+### Adversarial / edge-case profiles
+
+I asked my AI coding assistant to design profiles that stress the scoring
+rule. Each targets a specific weakness; the observed behavior is noted under
+each block.
+
+**1. Conflicting signals — "hyped but sad"** — `genre=classical, mood=melancholy, energy=0.95`
+
+The profile wants maximum energy *and* a low-energy, downbeat mood — two pulls
+that cannot both be satisfied.
+
+```
+============================================================
+  Conflicting: hyped but sad
+  Profile: genre=classical, mood=melancholy, energy=0.95
+============================================================
+
+1. Moonlit Sonata Redux - Clara Vale   (score: 4.22)
+     - genre match: classical (+2.0)
+     - mood match: melancholy (+1.5)
+     - energy 0.31 vs target 0.95 (+0.72)
+
+2. Iron Verdict - Ashfall   (score: 1.98)
+     - energy 0.96 vs target 0.95 (+1.98)
+
+3. Gym Hero - Max Pulse   (score: 1.96)
+     - energy 0.93 vs target 0.95 (+1.96)
+
+4. Storm Runner - Voltline   (score: 1.92)
+     - energy 0.91 vs target 0.95 (+1.92)
+
+5. Pulse Reactor - Circuit Bloom   (score: 1.86)
+     - energy 0.88 vs target 0.95 (+1.86)
+```
+
+> **What it revealed:** the categorical bonuses (`+3.5` total) outweigh the
+> energy term, so a *slow, sad* piano piece wins for a user who asked for high
+> energy. The genre+mood match dominates and the energy mismatch (only `+0.72`
+> of a possible `+2.0`) is silently absorbed. Rank #1 is technically the "best
+> fit" but arguably not what a hyped listener wants — the scoring can't detect
+> that the request itself is contradictory.
+
+**2. Out-of-range energy** — `genre=metal, mood=angry, energy=2.0`
+
+Energy is supposed to live in `0-1`. Feeding `2.0` pushes the proximity term
+`2.0 × (1 − |song − target|)` negative.
+
+```
+============================================================
+  Out-of-range energy
+  Profile: genre=metal, mood=angry, energy=2.0
+============================================================
+
+1. Iron Verdict - Ashfall   (score: 3.42)
+     - genre match: metal (+2.0)
+     - mood match: angry (+1.5)
+     - energy 0.96 vs target 2.00 (+-0.08)
+
+2. Gym Hero - Max Pulse   (score: -0.14)
+     - energy 0.93 vs target 2.00 (+-0.14)
+
+3. Storm Runner - Voltline   (score: -0.18)
+     - energy 0.91 vs target 2.00 (+-0.18)
+
+4. Pulse Reactor - Circuit Bloom   (score: -0.24)
+     - energy 0.88 vs target 2.00 (+-0.24)
+
+5. Sunrise City - Neon Echo   (score: -0.36)
+     - energy 0.82 vs target 2.00 (+-0.36)
+```
+
+> **What it revealed:** nothing clamps or validates the input, so the energy
+> term becomes a **penalty** and songs drop to *negative* scores (note the
+> malformed `+-0.08` reason string, too). The genre+mood match still floats
+> Iron Verdict to #1, but the whole list is now ranked by "least penalized."
+> A real system should validate `0 ≤ energy ≤ 1` on the way in.
+
+**3. Unknown genre & mood** — `genre=polka, mood=ecstatic, energy=0.5`
+
+Categories that appear nowhere in the catalog.
+
+```
+============================================================
+  Unknown genre & mood
+  Profile: genre=polka, mood=ecstatic, energy=0.5
+============================================================
+
+1. Dust and Diesel - Wade Harlan   (score: 1.96)
+     - energy 0.48 vs target 0.50 (+1.96)
+
+2. Velvet Hours - Simone Ray   (score: 1.96)
+     - energy 0.52 vs target 0.50 (+1.96)
+
+3. Island Time - Coral Sound   (score: 1.90)
+     - energy 0.55 vs target 0.50 (+1.90)
+
+4. Midnight Coding - LoRoom   (score: 1.84)
+     - energy 0.42 vs target 0.50 (+1.84)
+
+5. Focus Flow - LoRoom   (score: 1.80)
+     - energy 0.40 vs target 0.50 (+1.80)
+```
+
+> **What it revealed:** both categorical bonuses silently evaluate to zero and
+> ranking collapses to **pure energy proximity**. The user's stated genre/mood
+> contribute nothing yet trigger no warning — the system happily returns
+> confident-looking picks that ignore two of the three preferences. Note the
+> exact tie at `1.96` (#1 vs #2) resolved only by catalog order.
+
+**4. Empty profile** — `{}`
+
+No preferences at all.
+
+```
+============================================================
+  Empty profile
+  Profile: (empty - no preferences)
+============================================================
+
+1. Sunrise City - Neon Echo   (score: 0.00)
+     - no matching features
+
+2. Midnight Coding - LoRoom   (score: 0.00)
+     - no matching features
+
+3. Storm Runner - Voltline   (score: 0.00)
+     - no matching features
+
+4. Library Rain - Paper Lanterns   (score: 0.00)
+     - no matching features
+
+5. Gym Hero - Max Pulse   (score: 0.00)
+     - no matching features
+```
+
+> **What it revealed:** every song scores exactly `0.00`, so the "top 5" is
+> just the **first five rows of the CSV** (the sort is stable). The system
+> gives no signal that it has zero basis for its recommendations — a
+> best-guess ranking is indistinguishable from a confident one.
+
+**Takeaways for the model card:** the scoring rule is transparent but *too
+trusting* — it never validates input ranges, never flags unknown categories,
+and treats ties and zero-information cases as if they were real rankings.
+Fixes worth noting: clamp/validate energy to `0-1`, warn when a genre/mood
+matches nothing in the catalog, and surface a low-confidence flag when the top
+score is at or near `0`.
+
+---
+
 ## Experiments You Tried
 
 Use this section to document the experiments you ran. For example:
@@ -166,6 +414,99 @@ Use this section to document the experiments you ran. For example:
 - What happened when you changed the weight on genre from 2.0 to 0.5
 - What happened when you added tempo or valence to the score
 - How did your system behave for different types of users
+
+### Accuracy & Surprises — auditing the "High-Energy Pop" profile
+
+I compared the recommendations for `genre=pop, mood=happy, energy=0.9` against
+my own musical intuition:
+
+```
+1. Sunrise City      5.34   (pop + happy + energy 0.82)
+2. Gym Hero          3.94   (pop + energy 0.93)
+3. Rooftop Lights    3.22   (happy + energy 0.76)
+4. Storm Runner      1.98   (energy only)
+5. Pulse Reactor     1.96   (energy only)
+```
+
+**The #1 pick feels right.** Sunrise City is the only track that matches genre
+*and* mood *and* sits near the target energy, so it wins decisively.
+
+**The surprise is #2 vs #3.** Intuitively a *happy* song near the target energy
+(Rooftop Lights: happy, 0.76) is a better fit for a "happy" listener than a
+*not-happy* pop song (Gym Hero: `intense`, 0.93) — yet Gym Hero wins by 0.72.
+This is the **genre-priority bias** showing up live: a `+2.0` genre match
+outweighs a `+1.5` mood match even when the mood is flatly wrong.
+
+**Why Sunrise City ranked first, traced through the weights in `recommender.py`:**
+
+| Signal | Rule | Sunrise City | Gym Hero |
+|---|---|---|---|
+| Genre `+2.0` | exact match | pop ✓ **+2.0** | pop ✓ **+2.0** |
+| Mood `+1.5` | exact match | happy ✓ **+1.5** | intense ✗ **0** |
+| Energy `2.0×(1−\|Δ\|)` | proximity to 0.9 | \|0.82−0.9\| → **+1.84** | \|0.93−0.9\| → **+1.94** |
+| **Total** | | **5.34** | **3.94** |
+
+Note that Gym Hero actually scores *higher* on energy (1.94 vs 1.84) — the
+entire 1.40-point gap comes from the **mood match alone**. The categorical
+bonuses, not the continuous energy term, decide the ranking.
+
+**Does one song dominate every list?** No. The #1 slot changes per profile
+(Sunrise City → Library Rain → Storm Runner → Moonlit Sonata Redux → …), so the
+genre weight is not so strong that a single song wins everything. The real
+symptom of the tiny 17-song catalog is different: **the top 5 is thin** — only
+1–2 true matches per profile, with the rest padded by energy-proximity filler
+and even exact score ties (e.g. the `1.96` tie in the "Unknown genre & mood"
+profile).
+
+### Sensitivity experiment — Weight Shift (2× energy, ½ genre)
+
+**Change tested:** in `score_song()`, double the energy weight (`2.0 → 4.0`)
+and halve the genre weight (`2.0 → 1.0`); mood left at `1.5`. Applied
+temporarily, then reverted to the finalized recipe. `pytest` still passed under
+the new weights, confirming the math stayed valid (no negative-total or
+ordering regressions on the test songs).
+
+Watching the **High-Energy Pop** profile (`pop / happy / 0.9`):
+
+| Rank | Before (finalized 2.0 / 1.5 / 2.0) | After (experiment 1.0 / 1.5 / 4.0) |
+|---|---|---|
+| 1 | Sunrise City — 5.34 | Sunrise City — 6.18 |
+| 2 | **Gym Hero — 3.94** *(pop, `intense`)* | **Rooftop Lights — 4.94** *(happy)* |
+| 3 | Rooftop Lights — 3.22 | **Gym Hero — 4.88** *(pop, `intense`)* |
+| 4 | Storm Runner — 1.98 | Storm Runner — 3.96 |
+| 5 | Pulse Reactor — 1.96 | Pulse Reactor — 3.92 |
+
+Experiment output for the flipped pair:
+
+```
+1. Sunrise City - Neon Echo   (score: 6.18)
+     - genre match: pop (+1.0)
+     - mood match: happy (+1.5)
+     - energy 0.82 vs target 0.90 (+3.68)
+
+2. Rooftop Lights - Indigo Parade   (score: 4.94)
+     - mood match: happy (+1.5)
+     - energy 0.76 vs target 0.90 (+3.44)
+
+3. Gym Hero - Max Pulse   (score: 4.88)
+     - genre match: pop (+1.0)
+     - energy 0.93 vs target 0.90 (+3.88)
+```
+
+**More accurate, or just different?** For *this* profile it's **more accurate**:
+the flip is exactly the fix for the genre-priority bias I flagged above — a
+*happy* song (Rooftop Lights) now beats a genre-only, wrong-mood pop track
+(Gym Hero), which matches how a person would rank "happy high-energy pop."
+
+But it's a trade, not a free win. Quadrupling energy's ceiling (`0 → 4.0`)
+makes energy proximity the loudest signal in the whole rule, so the tail (#4,
+#5) is now packed even tighter with cross-genre songs whose *only* virtue is
+sitting near 0.9 — Storm Runner (rock) and Pulse Reactor (electronic) jump from
+~1.9 to ~3.9 and crowd out anything genre/mood-relevant. So the change sharpens
+the *head* of the list for mood-sensitive users while making the *tail* more
+genre-blind. The finalized recipe keeps genre at `2.0` as a deliberate coarse
+filter; this experiment shows that choice is what produces the very bias
+documented above — a tunable, not a bug.
 
 ---
 
